@@ -1,15 +1,38 @@
 import streamlit as st
 import cv2
+import numpy as np
+import requests
+import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-import numpy as np
 from PIL import Image
 
-# Load classifier and model
+# Function to download model from S3
+def download_model_from_s3(url, filename):
+    if not os.path.exists(filename):
+        with st.spinner("Downloading model from S3..."):
+            response = requests.get(url, stream=True)
+            if response.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in response.iter_content(1024):
+                        f.write(chunk)
+            else:
+                st.error("Failed to download model from S3.")
+                st.stop()
+
+# Use your actual S3 URL
+S3_MODEL_URL = "https://parthanium.s3.ap-south-1.amazonaws.com/ferNetModel.h5"
+MODEL_FILENAME = "ferNetModel.h5"
+
+# Download model
+download_model_from_s3(S3_MODEL_URL, MODEL_FILENAME)
+
+# Load face detector and emotion classifier
 face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-classifier = load_model('ferNetModel.h5')
+classifier = load_model(MODEL_FILENAME)
 emotion_labels = ['Angry','Disgust','Fear','Happy','Neutral','sad','Surprise']
 
+# Streamlit UI
 st.title("Real-time Emotion Detector")
 
 run = st.checkbox('Start Webcam')
@@ -24,7 +47,6 @@ while run:
         st.error("Failed to access webcam.")
         break
 
-    labels = []
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_classifier.detectMultiScale(gray)
 
@@ -45,7 +67,6 @@ while run:
         else:
             cv2.putText(frame, 'No Faces', (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
-    # Convert color for streamlit display
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     FRAME_WINDOW.image(frame)
 
